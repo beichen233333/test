@@ -1,0 +1,73 @@
+name: Bilibili Auto Login Refresh
+
+on:
+  workflow_dispatch:
+    inputs:
+      login_mode:
+        description: '选择登录获取的凭证端'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - tv
+          - web
+
+jobs:
+  get-credentials:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Install SSH Key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known_hosts: unnecessary
+          if_key_exists: replace
+
+      - name: Login
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+
+      - name: Clone Private Repository
+        run: |
+          git clone git@github.com:beichen23333/Bilibili-AutoLike.git Bilibili-AutoLike
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          pip install -r Bilibili-AutoLike/requirements.txt
+
+      - name: Run Login Flow
+        id: login
+        run: |
+          python Bilibili-AutoLike/login.py --mode ${{ github.event.inputs.login_mode }}
+
+      - name: Save Secrets to Github
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_TOKEN }}
+          TMP_ACCESS_TOKEN: ${{ steps.login.outputs.bili_access_token }}
+          TMP_SESSDATA: ${{ steps.login.outputs.bili_sessdata }}
+          TMP_JCT: ${{ steps.login.outputs.bili_jct }}
+        run: |
+          if [ -n "$TMP_ACCESS_TOKEN" ]; then
+            echo "$TMP_ACCESS_TOKEN" | gh secret set BILI_ACCESS_TOKEN
+            echo "🔒 BILI_ACCESS_TOKEN 写入完毕"
+          fi
+          if [ -n "$TMP_SESSDATA" ]; then
+            echo "$TMP_SESSDATA" | gh secret set BILI_SESSDATA
+            echo "🔒 BILI_SESSDATA 写入完毕"
+          fi
+          if [ -n "$TMP_JCT" ]; then
+            echo "$TMP_JCT" | gh secret set BILI_JCT
+            echo "🔒 BILI_JCT 写入完毕"
+          fi
