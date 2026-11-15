@@ -1,7 +1,11 @@
+
 name: Remote SSH Control
 
 on:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   ssh-access:
@@ -11,30 +15,41 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-
       - name: Clone Repositories
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set -e
+
+          export GIT_TERMINAL_PROMPT=0
+
           sudo mkdir -p /root/a
+
+          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
 
           sudo git clone https://github.com/beichen23333/BlueArchive-Tools.git /root/a
 
+          sudo git -C /root/a submodule sync --recursive
           sudo git -C /root/a submodule update --init --recursive
 
           sudo git clone --branch JP --recurse-submodules https://github.com/beichen23333/BA-FlatData.git /root/a/FlatData
 
+          sudo git -C /root/a/FlatData submodule sync --recursive
           sudo git -C /root/a/FlatData submodule update --init --recursive
-
-          echo "=========================================="
-          echo "Repository cloning completed"
-          echo "BlueArchive-Tools: /root/a"
-          echo "BA-FlatData: /root/a/FlatData"
-          echo "BA-FlatData branch: $(sudo git -C /root/a/FlatData branch --show-current)"
-          echo "=========================================="
 
           sudo chown -R root:root /root/a
 
+          echo "=========================================="
+          echo "Clone completed"
+          echo "BlueArchive-Tools: /root/a"
+          echo "BA-FlatData: /root/a/FlatData"
+          echo "Branch: $(sudo git -C /root/a/FlatData branch --show-current)"
+          echo "=========================================="
+
       - name: Setup SSH
         run: |
+          set -e
+
           echo "root:admin" | sudo chpasswd
 
           sudo sed -i '/^#\?PermitRootLogin /d' /etc/ssh/sshd_config
@@ -51,7 +66,10 @@ jobs:
 
       - name: Run Cloudflared
         run: |
-          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          set -e
+
+          curl -fL --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+
           sudo dpkg -i cloudflared.deb
 
           cloudflared tunnel --url tcp://localhost:22 > cloudflare.log 2>&1 &
@@ -59,12 +77,11 @@ jobs:
           echo "Waiting for Cloudflare tunnel..."
 
           for i in {1..30}; do
-            DOMAIN=$(grep -oE '[a-zA-Z0-9-]+\.trycloudflare\.com' cloudflare.log | head -n 1)
+            DOMAIN=$(grep -oE '[a-zA-Z0-9-]+\.trycloudflare\.com' cloudflare.log | head -n 1 || true)
 
             if [ -n "$DOMAIN" ]; then
               echo "=========================================="
               echo "SSH Domain: $DOMAIN"
-              echo "Password: admin"
               echo "=========================================="
 
               echo "$DOMAIN" > cf_domain.txt
