@@ -4,21 +4,13 @@ name: Remote SSH Control
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
   ssh-access:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Setup SSH
         run: |
-          set -e
-
           echo "root:admin" | sudo chpasswd
 
           sudo sed -i '/^#\?PermitRootLogin /d' /etc/ssh/sshd_config
@@ -49,9 +41,25 @@ jobs:
             DOMAIN=$(grep -oE '[a-zA-Z0-9-]+\.trycloudflare\.com' cloudflare.log | head -n 1 || true)
 
             if [ -n "$DOMAIN" ]; then
-              echo "=========================================="
-              echo "SSH Domain: $DOMAIN"
-              echo "=========================================="
+              echo "=============================================="
+              echo "Cloudflare SSH Connection"
+              echo "=============================================="
+              echo ""
+              echo "Termux installation:"
+              echo "pkg update -y && pkg install openssh cloudflared -y"
+              echo ""
+              echo "Start tunnel:"
+              echo "cloudflared access tcp --hostname $DOMAIN --url localhost:2222"
+              echo ""
+              echo "Open another Termux session and execute:"
+              echo "ssh root@127.0.0.1 -p 2222"
+              echo ""
+              echo "Password: admin"
+              echo ""
+              echo "SFTP:"
+              echo "sftp -P 2222 root@127.0.0.1"
+              echo ""
+              echo "=============================================="
 
               echo "$DOMAIN" > cf_domain.txt
               break
