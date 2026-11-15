@@ -15,37 +15,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Clone Repositories
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -e
-
-          export GIT_TERMINAL_PROMPT=0
-
-          sudo mkdir -p /root/a
-
-          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
-
-          sudo git clone https://github.com/beichen23333/BlueArchive-Tools.git /root/a
-
-          sudo git -C /root/a submodule sync --recursive
-          sudo git -C /root/a submodule update --init --recursive
-
-          sudo git clone --branch JP --recurse-submodules https://github.com/beichen23333/BA-FlatData.git /root/a/FlatData
-
-          sudo git -C /root/a/FlatData submodule sync --recursive
-          sudo git -C /root/a/FlatData submodule update --init --recursive
-
-          sudo chown -R root:root /root/a
-
-          echo "=========================================="
-          echo "Clone completed"
-          echo "BlueArchive-Tools: /root/a"
-          echo "BA-FlatData: /root/a/FlatData"
-          echo "Branch: $(sudo git -C /root/a/FlatData branch --show-current)"
-          echo "=========================================="
-
       - name: Setup SSH
         run: |
           set -e
