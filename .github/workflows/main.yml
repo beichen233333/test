@@ -1,4 +1,3 @@
-
 name: Remote SSH Control
 
 on:
@@ -12,27 +11,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+
       - name: Clone Repositories
         run: |
           sudo mkdir -p /root/a
-          sudo chown -R root:root /root/a
 
-          git clone https://github.com/beichen23333/BlueArchive-Tools.git /root/a
+          sudo git clone https://github.com/beichen23333/BlueArchive-Tools.git /root/a
 
-          cd /root/a
-          git submodule update --init --recursive
+          sudo git -C /root/a submodule update --init --recursive
 
-          git clone --branch JP --recurse-submodules https://github.com/beichen23333/BA-FlatData.git /root/a/FlatData
+          sudo git clone --branch JP --recurse-submodules https://github.com/beichen23333/BA-FlatData.git /root/a/FlatData
 
-          cd /root/a/FlatData
-          git submodule update --init --recursive
+          sudo git -C /root/a/FlatData submodule update --init --recursive
 
           echo "=========================================="
           echo "Repository cloning completed"
           echo "BlueArchive-Tools: /root/a"
           echo "BA-FlatData: /root/a/FlatData"
-          echo "BA-FlatData branch: $(git branch --show-current)"
+          echo "BA-FlatData branch: $(sudo git -C /root/a/FlatData branch --show-current)"
           echo "=========================================="
+
+          sudo chown -R root:root /root/a
 
       - name: Setup SSH
         run: |
