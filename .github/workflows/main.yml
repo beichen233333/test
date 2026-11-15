@@ -1,48 +1,82 @@
+
 name: Remote SSH Control
+
 on:
   workflow_dispatch:
 
 jobs:
   ssh-access:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Clone Repositories
+        run: |
+          sudo mkdir -p /root/a
+          sudo chown -R root:root /root/a
+
+          git clone https://github.com/beichen23333/BlueArchive-Tools.git /root/a
+
+          cd /root/a
+          git submodule update --init --recursive
+
+          git clone --branch JP --recurse-submodules https://github.com/beichen23333/BA-FlatData.git /root/a/FlatData
+
+          cd /root/a/FlatData
+          git submodule update --init --recursive
+
+          echo "=========================================="
+          echo "Repository cloning completed"
+          echo "BlueArchive-Tools: /root/a"
+          echo "BA-FlatData: /root/a/FlatData"
+          echo "BA-FlatData branch: $(git branch --show-current)"
+          echo "=========================================="
+
       - name: Setup SSH
         run: |
           echo "root:admin" | sudo chpasswd
-          sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
-          sudo service ssh start
+
+          sudo sed -i '/^#\?PermitRootLogin /d' /etc/ssh/sshd_config
+          sudo sed -i '/^#\?PasswordAuthentication /d' /etc/ssh/sshd_config
+          sudo sed -i '/^#\?KbdInteractiveAuthentication /d' /etc/ssh/sshd_config
+
+          echo "PermitRootLogin yes" | sudo tee -a /etc/ssh/sshd_config
+          echo "PasswordAuthentication yes" | sudo tee -a /etc/ssh/sshd_config
+          echo "KbdInteractiveAuthentication yes" | sudo tee -a /etc/ssh/sshd_config
+          echo "UsePAM yes" | sudo tee -a /etc/ssh/sshd_config
+
+          sudo sshd -t
+          sudo service ssh restart
 
       - name: Run Cloudflared
         run: |
           curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
           sudo dpkg -i cloudflared.deb
-          
+
           cloudflared tunnel --url tcp://localhost:22 > cloudflare.log 2>&1 &
-          
-          echo "正在等待 Cloudflare 生成域名..."
-          for i in {1..15}; do
-            DOMAIN=$(grep -oE "[a-zA-Z0-9-]+\.trycloudflare\.com" cloudflare.log | head -n 1)
-            if [ ! -z "$DOMAIN" ]; then
-              echo "================================================="
-              echo "临时 SSH 地址: $DOMAIN"
-              echo "Termux 连接命令："
-              echo "ssh -o ProxyCommand=\"cloudflared access tcp --hostname %h\" root@$DOMAIN"
-              echo "SFTP命令："
-              echo "cloudflared access tcp --hostname $DOMAIN --listener 127.0.0.1:8888"
-              echo "密码："
-              echo "admin"
-              echo "================================================="
-              echo $DOMAIN > cf_domain.txt
+
+          echo "Waiting for Cloudflare tunnel..."
+
+          for i in {1..30}; do
+            DOMAIN=$(grep -oE '[a-zA-Z0-9-]+\.trycloudflare\.com' cloudflare.log | head -n 1)
+
+            if [ -n "$DOMAIN" ]; then
+              echo "=========================================="
+              echo "SSH Domain: $DOMAIN"
+              echo "Password: admin"
+              echo "=========================================="
+
+              echo "$DOMAIN" > cf_domain.txt
               break
             fi
+
             sleep 2
           done
-          
+
           if [ ! -f cf_domain.txt ]; then
-            echo "错误：未能获取到域名，请重启流程。"
+            echo "Failed to obtain Cloudflare domain"
             cat cloudflare.log
             exit 1
           fi
